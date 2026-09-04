@@ -1,0 +1,18 @@
+{
+  "name": "skautotruck-backend",
+  "version": "0.1.0-foundation",
+  "private": true,
+  "description": "S.K.AUTOTRUCK production backend foundation (Step 30A). Zero external dependencies by necessity of the build environment; see README.",
+  "main": "src/server.js",
+  "scripts": {
+    "migrate": "node src/db/migrate.js",
+    "seed": "node src/db/seed.js",
+    "start": "node src/server.js",
+    "test": "node --test tests/"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

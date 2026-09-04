@@ -1,0 +1,49 @@
+# ============================================================
+# Render Blueprint — S.K.AUTOTRUCK Backend
+#
+# IMPORTANT: I could not verify this file against Render's current live
+# schema/docs (no network access in the environment that wrote this).
+# The shape below matches Render's documented Blueprint format as of
+# this project's knowledge, but double-check field names against
+# https://render.com/docs/blueprint-spec before relying on it, and
+# adjust if Render has changed the schema since.
+#
+# No build step is listed on purpose — this backend has zero npm
+# dependencies (see README "Why no framework"), so there is nothing to
+# install or compile. startCommand reuses the EXISTING "migrate" and
+# "start" scripts from package.json unmodified — nothing new was added
+# there.
+#
+# No secret values live in this file. Every envVar below with
+# `sync: false` means "Render will prompt for this in the dashboard
+# instead of reading a value from here" — that's how real secrets get
+# set without ever being committed to Git.
+# ============================================================
+services:
+  - type: web
+    name: skautotruck-backend
+    runtime: node
+    plan: starter
+    startCommand: npm run migrate && npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_PATH
+        value: /var/data/somkiat.db
+      - key: ALLOWED_ORIGIN
+        sync: false   # set to the real public-site / dashboard origin(s) in the dashboard
+      - key: PUBLIC_DEALER_ID
+        sync: false   # e.g. DEALER_SOMKIAT — required for /api/public/* to work at all
+      - key: FACEBOOK_APP_SECRET
+        sync: false
+      - key: FACEBOOK_VERIFY_TOKEN
+        sync: false
+      - key: FACEBOOK_PAGE_ACCESS_TOKEN
+        sync: false
+      - key: CLAUDE_API_KEY
+        sync: false
+    disk:
+      name: sqlite-data
+      mountPath: /var/data
+      sizeGB: 1

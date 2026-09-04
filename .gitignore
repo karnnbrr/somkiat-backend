@@ -1,0 +1,15 @@
+# SQLite database files — real/local data must never be committed
+data/*.db
+*.db
+
+# Environment secrets — .env.example (checked in) has placeholders only;
+# a real .env must never be committed
+.env
+
+# npm (no node_modules exist today — zero dependencies — but this is
+# here defensively in case that ever changes)
+node_modules/
+npm-debug.log*
+
+# OS/editor cruft
+.DS_Store
