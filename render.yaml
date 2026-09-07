@@ -32,7 +32,7 @@ services:
       - key: DATABASE_PATH
         value: /var/data/somkiat.db
       - key: ALLOWED_ORIGIN
-        sync: false   # comma-separated list, e.g. https://www.skautotruck.com,https://skautotrucks.karnnnbrr.workers.dev — no trailing slashes
+        sync: false   # https://www.skautotruck.com (Public Site), https://skautotrucks.karnnnbrr.workers.dev (Admin Dashboard) — no trailing slashes
       - key: PUBLIC_DEALER_ID
         sync: false   # e.g. DEALER_SOMKIAT — required for /api/public/* to work at all
       - key: FACEBOOK_APP_SECRET
