@@ -77,6 +77,16 @@ class Router {
 
     try {
       const result = await match.handler({ req, params, query, body, rawBody, correlationId });
+      if (result.raw) {
+        // Deliberate exception to the "always JSON" rule: Facebook's GET
+        // webhook verification handshake requires the raw hub.challenge
+        // string back as plain text, not wrapped in JSON — Facebook's own
+        // verifier rejects a JSON body here. This is the ONLY route that
+        // uses this path (see routes/facebookWebhook.js).
+        res.writeHead(result.status || 200, { 'Content-Type': 'text/plain' });
+        res.end(String(result.body));
+        return;
+      }
       sendJson(res, result.status || 200, { ...result.data, correlationId });
     } catch (err) {
       if (err instanceof AppError) {

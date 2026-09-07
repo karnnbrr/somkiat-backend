@@ -142,18 +142,19 @@ test('cross-dealer attempt: a page_id resolves to exactly one dealer, never a ca
   assert.strictEqual(res.body.dealer_id, 'DEALER_ABC'); // never DEALER_SOMKIAT, no matter what else is in the payload
 });
 
-test('GET verification handshake works with the correct token', async () => {
+test('GET verification handshake works with the correct token, returning the RAW challenge as plain text (Facebook requires this, not JSON)', async () => {
   process.env.FACEBOOK_VERIFY_TOKEN = 'test-verify-token';
   try {
     const res = await new Promise((resolve, reject) => {
       http.get(baseUrl + '/api/facebook/webhook?hub.mode=subscribe&hub.verify_token=test-verify-token&hub.challenge=ABC123', (r) => {
         let data = '';
         r.on('data', (c) => { data += c; });
-        r.on('end', () => resolve({ status: r.statusCode, body: JSON.parse(data) }));
+        r.on('end', () => resolve({ status: r.statusCode, contentType: r.headers['content-type'], raw: data }));
       }).on('error', reject);
     });
     assert.strictEqual(res.status, 200);
-    assert.strictEqual(res.body['hub.challenge'], 'ABC123');
+    assert.strictEqual(res.raw, 'ABC123'); // exactly the raw string, no JSON wrapping at all
+    assert.match(res.contentType, /text\/plain/);
   } finally {
     delete process.env.FACEBOOK_VERIFY_TOKEN;
   }

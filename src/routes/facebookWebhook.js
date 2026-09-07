@@ -28,11 +28,9 @@ function register(router) {
     if (!result.ok) {
       throw new AppError('AUTH_ERROR', 'webhook verification failed');
     }
-    // Facebook expects the raw challenge string back, not JSON — the router
-    // always sends JSON, so this is the one deliberate exception: we return
-    // it as data and the route itself is documented as needing raw-text
-    // support before real production use (see README "Step 31 status").
-    return { data: { 'hub.challenge': result.challenge } };
+    // Facebook requires the raw challenge string back as plain text, NOT
+    // JSON — this is why `raw: true` exists as a special case in router.js.
+    return { raw: true, body: result.challenge };
   });
 
   // ---- POST: actual incoming events ----
