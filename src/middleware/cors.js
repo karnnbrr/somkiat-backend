@@ -3,18 +3,33 @@
 // backend when they are deployed on separate origins.
 //
 // Policy (deliberately the smallest safe thing that works):
-//   - Production (NODE_ENV=production): allow EXACTLY ONE origin, read
-//     from process.env.ALLOWED_ORIGIN. Never a wildcard. If
-//     ALLOWED_ORIGIN isn't set, no origin is allowed — this fails closed,
-//     not open.
+//   - Production (NODE_ENV=production): allow a SET of exact origins,
+//     read from process.env.ALLOWED_ORIGIN as a comma-separated list
+//     (a single value still works exactly as before — this is a
+//     backward-compatible extension, not a breaking change). Never a
+//     wildcard. If ALLOWED_ORIGIN isn't set, no origin is allowed —
+//     this fails closed, not open.
 //   - Non-production: reflect back whatever Origin the request actually
 //     came from (still never a literal "*"), UNLESS ALLOWED_ORIGIN is
-//     explicitly set, in which case that exact value is honored even in
-//     dev/test — useful for rehearsing the production policy locally.
-//     Reflecting the origin in dev preserves today's behavior: nothing
-//     in this codebase or its tests currently depends on any particular
-//     CORS policy (confirmed: no test sends an Origin header at all), so
-//     this is purely additive.
+//     explicitly set, in which case only origins in that list are
+//     honored even in dev/test — useful for rehearsing the production
+//     policy locally. Reflecting the origin in dev preserves today's
+//     behavior: nothing in this codebase or its tests currently depends
+//     on any particular CORS policy (confirmed: no test sends an Origin
+//     header at all), so this is purely additive.
+//
+// Why multiple origins: this backend serves more than one deployed
+// frontend on different domains (e.g. the admin dashboard and the
+// public customer site) — CORS must allow each of them by exact
+// string, never by wildcard, and never by loosely matching a prefix.
+//
+// Gotcha this parsing defends against: a trailing slash. A browser's
+// Origin header is ALWAYS scheme+host+port with NO trailing slash and
+// NO path (e.g. "https://example.com", never "https://example.com/").
+// If someone pastes a URL with a trailing slash into ALLOWED_ORIGIN, an
+// exact-match comparison would silently never match anything — so
+// trailing slashes and surrounding whitespace are stripped from each
+// configured entry before comparison.
 //
 // Access-Control-Allow-Credentials is intentionally NEVER sent. The
 // frontend authenticates with a Bearer token in the Authorization
@@ -28,17 +43,28 @@
 const ALLOWED_METHODS = 'GET, POST, PATCH, OPTIONS';
 const ALLOWED_HEADERS = 'Content-Type, Authorization';
 
+/** Parses ALLOWED_ORIGIN into a clean array — comma-separated, trailing
+ *  slashes and surrounding whitespace stripped, empty entries dropped. */
+function parseConfiguredOrigins() {
+  const raw = process.env.ALLOWED_ORIGIN;
+  if (!raw) return [];
+  return raw
+    .split(',')
+    .map((s) => s.trim().replace(/\/+$/, ''))
+    .filter((s) => s.length > 0);
+}
+
 function resolveAllowedOrigin(requestOrigin) {
   const env = process.env.NODE_ENV || 'development';
-  const configuredOrigin = process.env.ALLOWED_ORIGIN;
+  const configuredOrigins = parseConfiguredOrigins();
 
   if (env === 'production') {
-    if (configuredOrigin && requestOrigin === configuredOrigin) return configuredOrigin;
-    return null; // fail closed: no configured origin => nobody is allowed, never '*'
+    if (requestOrigin && configuredOrigins.includes(requestOrigin)) return requestOrigin;
+    return null; // fail closed: no match => nobody is allowed, never '*'
   }
 
-  if (configuredOrigin) {
-    return requestOrigin === configuredOrigin ? configuredOrigin : null;
+  if (configuredOrigins.length > 0) {
+    return requestOrigin && configuredOrigins.includes(requestOrigin) ? requestOrigin : null;
   }
   return requestOrigin || null;
 }
