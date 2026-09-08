@@ -58,7 +58,20 @@ function makeAiTools(context) {
     // ---- READ ----
     lookupStock: (criteria) => stockService.searchTrucks(context, sanitizeCriteria(context, criteria)),
     getTruck: ({ truck_id } = {}) => stockService.getTruck(context, truck_id),
-    getTruckPhotos: ({ truck_id } = {}) => photoService.listActivePhotos(context, truck_id),
+    // Claude never needs the raw photo bytes to reason about a conversation
+    // — it just needs to know a photo exists and whether it's a real,
+    // sendable URL. A base64 data: URL (from the dashboard's direct-file-
+    // upload feature) can be several MB of text; feeding that into the AI
+    // conversation exploded a single request past Claude's token limit in
+    // production. Real http(s) URLs stay as-is (tiny, and this is exactly
+    // what respondToMessage's image-sending code needs to see); base64
+    // data is replaced with a short marker instead of being included.
+    getTruckPhotos: ({ truck_id } = {}) => photoService.listActivePhotos(context, truck_id).map((p) => ({
+      ...p,
+      storage_reference: /^https?:\/\//.test(p.storage_reference || '')
+        ? p.storage_reference
+        : '[uploaded photo on file — not a shareable link]',
+    })),
     findCustomerByPhone: ({ phone } = {}) => crmService.findCustomerByPhone(context, phone),
     listTruckInterests: ({ customer_id } = {}) => crmService.listTruckInterestsForCustomer(context, customer_id),
 
