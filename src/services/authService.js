@@ -57,4 +57,28 @@ function contextFromToken(session_token, correlationId) {
   return contextFromSession(row, correlationId);
 }
 
-module.exports = { createUser, login, contextFromToken, hashPassword };
+function changePassword(context, { currentPassword, newPassword }) {
+  if (!currentPassword || !newPassword) {
+    throw new AppError('VALIDATION_ERROR', 'currentPassword and newPassword are required');
+  }
+  if (newPassword.length < 8) {
+    throw new AppError('VALIDATION_ERROR', 'newPassword must be at least 8 characters');
+  }
+  const db = getDb();
+  const user = db.prepare('SELECT * FROM users WHERE user_id = ? AND dealer_id = ?').get(context.user_id, context.dealer_id);
+  if (!user) throw new AppError('AUTH_ERROR', 'invalid session');
+
+  const { hash: currentHashCheck } = hashPassword(currentPassword, user.password_salt);
+  if (currentHashCheck !== user.password_hash) {
+    throw new AppError('AUTH_ERROR', 'current password is incorrect');
+  }
+
+  const { hash, salt } = hashPassword(newPassword);
+  db.prepare('UPDATE users SET password_hash = ?, password_salt = ? WHERE user_id = ?').run(hash, salt, user.user_id);
+
+  // Log the user out of every existing session — a password change should
+  // invalidate old sessions, not leave them silently valid forever.
+  db.prepare('DELETE FROM sessions WHERE user_id = ?').run(user.user_id);
+}
+
+module.exports = { createUser, login, contextFromToken, hashPassword, changePassword };
