@@ -89,12 +89,15 @@ async function respondToMessage(context, { conversation_id, page_id, recipient_p
 
 function register(router) {
   // ---- GET: Facebook's one-time subscription verification handshake ----
-  router.get('/api/facebook/webhook', async ({ query }) => {
+  router.get('/api/facebook/webhook', async ({ query, correlationId }) => {
+    console.log(`[${correlationId}] Facebook webhook GET verification request received: mode=${query['hub.mode']}`);
     const verifyToken = process.env.FACEBOOK_VERIFY_TOKEN;
     const result = verifySubscriptionHandshake(query, verifyToken);
     if (!result.ok) {
+      console.warn(`[${correlationId}] webhook GET verification FAILED`);
       throw new AppError('AUTH_ERROR', 'webhook verification failed');
     }
+    console.log(`[${correlationId}] webhook GET verification succeeded`);
     // Facebook requires the raw challenge string back as plain text, NOT
     // JSON — this is why `raw: true` exists as a special case in router.js.
     return { raw: true, body: result.challenge };
@@ -102,7 +105,9 @@ function register(router) {
 
   // ---- POST: actual incoming events ----
   router.post('/api/facebook/webhook', async ({ body, rawBody, req, correlationId }) => {
+    console.log(`[${correlationId}] Facebook webhook POST received, body length=${(rawBody || '').length}`);
     const events = normalizeIncomingEvents(body);
+    console.log(`[${correlationId}] normalized ${events.length} event(s) from the payload`);
     if (events.length === 0) {
       throw new AppError('VALIDATION_ERROR', 'page_id and message_id are required');
     }
@@ -131,6 +136,7 @@ function register(router) {
         context = contextFromFacebookPage(page_id, correlationId);
       } catch (e) {
         if (e instanceof DealerContextError) {
+          console.warn(`[${correlationId}] BLOCKED — no dealer found for page_id=${page_id}`);
           results.push({ status: 'BLOCKED', reason: 'DEALER_CONTEXT_ERROR' });
           continue;
         }
@@ -139,6 +145,7 @@ function register(router) {
 
       const idem = idempotencyService.checkAndRecord({ page_id, message_id, dealer_id: context.dealer_id });
       if (!idem.isNew) {
+        console.log(`[${correlationId}] DUPLICATE — message_id=${message_id} already processed`);
         results.push({ status: 'DUPLICATE' });
         continue;
       }
@@ -153,7 +160,9 @@ function register(router) {
 
       // Real AI wiring — awaited so failures are visible in this response's
       // processing, but internally never throws (see respondToMessage above).
+      console.log(`[${correlationId}] processed event for page ${page_id}, conversation ${match.conversation.conversation_id}, calling AI now...`);
       await respondToMessage(context, { conversation_id: match.conversation.conversation_id, page_id, recipient_psid: sender_psid, correlationId });
+      console.log(`[${correlationId}] AI turn finished for conversation ${match.conversation.conversation_id}`);
 
       results.push({
         status: 'PROCESSED',
