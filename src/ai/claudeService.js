@@ -46,7 +46,7 @@ function sendMessage({ model, system, messages, tools }) {
   }
   const apiKey = process.env.CLAUDE_API_KEY;
   const payload = JSON.stringify({
-    model: model || 'claude-sonnet-4-6',
+    model: model || process.env.CLAUDE_MODEL || 'claude-sonnet-5',
     max_tokens: 1024,
     system,
     messages,

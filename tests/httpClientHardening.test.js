@@ -78,6 +78,64 @@ test('claudeService: a non-2xx response never leaks the API key in the rejected 
   }
 });
 
+test('claudeService: sends a real, current model identifier by default (regression guard against the wrong-model-name bug)', async () => {
+  process.env.CLAUDE_API_KEY = 'test-key-not-real';
+  process.env.CLAUDE_API_BASE_URL_OVERRIDE_FOR_TESTS_ONLY = standInUrl;
+  let capturedBody = null;
+  nextResponse = { status: 200, body: JSON.stringify({ content: [{ type: 'text', text: 'ok' }] }) };
+  const originalHandler = standInServer.listeners('request')[0];
+  try {
+    // Wrap the stand-in server just for this test to capture the request body.
+    standInServer.removeAllListeners('request');
+    standInServer.on('request', (req, res) => {
+      let data = '';
+      req.on('data', (c) => { data += c; });
+      req.on('end', () => {
+        capturedBody = JSON.parse(data);
+        res.writeHead(nextResponse.status, { 'Content-Type': 'application/json' });
+        res.end(nextResponse.body);
+      });
+    });
+    await claudeService.sendMessage({ messages: [{ role: 'user', content: 'hi' }] });
+    assert.strictEqual(capturedBody.model, 'claude-sonnet-5');
+    assert.notStrictEqual(capturedBody.model, 'claude-sonnet-4-6', 'must never regress to the invalid model name that caused a real 400 in production');
+  } finally {
+    standInServer.removeAllListeners('request');
+    standInServer.on('request', originalHandler);
+    delete process.env.CLAUDE_API_KEY;
+    delete process.env.CLAUDE_API_BASE_URL_OVERRIDE_FOR_TESTS_ONLY;
+  }
+});
+
+test('claudeService: CLAUDE_MODEL env var overrides the default when set', async () => {
+  process.env.CLAUDE_API_KEY = 'test-key-not-real';
+  process.env.CLAUDE_API_BASE_URL_OVERRIDE_FOR_TESTS_ONLY = standInUrl;
+  process.env.CLAUDE_MODEL = 'claude-opus-5';
+  let capturedBody = null;
+  nextResponse = { status: 200, body: JSON.stringify({ content: [{ type: 'text', text: 'ok' }] }) };
+  const originalHandler = standInServer.listeners('request')[0];
+  try {
+    standInServer.removeAllListeners('request');
+    standInServer.on('request', (req, res) => {
+      let data = '';
+      req.on('data', (c) => { data += c; });
+      req.on('end', () => {
+        capturedBody = JSON.parse(data);
+        res.writeHead(nextResponse.status, { 'Content-Type': 'application/json' });
+        res.end(nextResponse.body);
+      });
+    });
+    await claudeService.sendMessage({ messages: [{ role: 'user', content: 'hi' }] });
+    assert.strictEqual(capturedBody.model, 'claude-opus-5');
+  } finally {
+    standInServer.removeAllListeners('request');
+    standInServer.on('request', originalHandler);
+    delete process.env.CLAUDE_API_KEY;
+    delete process.env.CLAUDE_API_BASE_URL_OVERRIDE_FOR_TESTS_ONLY;
+    delete process.env.CLAUDE_MODEL;
+  }
+});
+
 test('claudeService: timeout mechanism is really wired up (setTimeout + destroy on the request)', () => {
   const src = require('node:fs').readFileSync(require.resolve('../src/ai/claudeService.js'), 'utf8');
   assert.match(src, /req\.setTimeout\(/, 'claudeService.js must call req.setTimeout(...)');
