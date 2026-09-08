@@ -25,6 +25,18 @@ function register(router) {
     return { status: 201, data: { truck } };
   });
 
+  router.patch('/api/stock/:truck_id', async ({ req, params, body, correlationId }) => {
+    const context = requireAuth(req, correlationId);
+    const truck = stockService.editTruckDetails(context, params.truck_id, body);
+    return { data: { truck } };
+  });
+
+  router.post('/api/stock/:truck_id/delete', async ({ req, params, correlationId }) => {
+    const context = requireAuth(req, correlationId);
+    stockService.deleteTruck(context, params.truck_id);
+    return { data: { status: 'DELETED' } };
+  });
+
   router.post('/api/stock/:truck_id/reserve', async ({ req, params, body, correlationId }) => {
     const context = requireAuth(req, correlationId);
     const truck = stockService.reserveTruck(context, params.truck_id, body.customer_id);

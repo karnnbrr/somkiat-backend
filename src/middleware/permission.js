@@ -23,7 +23,7 @@ const PERMISSIONS = {
     'customer.view', 'customer.create', 'interaction.create', 'lead.create',
     'truck_interest.create', 'follow_up.create', 'follow_up.complete',
     'handoff.accept', 'handoff.update_status', 'sale.draft',
-    'sale.approve', 'sale.void', 'stock.manual_edit', 'photo.restore', 'photo.purge',
+    'sale.approve', 'sale.void', 'stock.manual_edit', 'stock.delete', 'photo.restore', 'photo.purge',
     'conflict.resolve',
   ]),
   // 'ai' pseudo-role: only ever used by contextFromFacebookPage(). Deliberately

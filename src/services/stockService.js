@@ -104,4 +104,30 @@ function cancelReservation(context, truck_id) {
   return getTruck(context, truck_id);
 }
 
-module.exports = { STOCK_STATUSES, getTruck, searchTrucks, addTruck, editTruckDetails, reserveTruck, cancelReservation };
+/**
+ * Deletes a truck. Deliberately Manager-only (a stricter action than
+ * general edits) and deliberately FAILS if any real activity already
+ * exists against this truck (photos, customer interest, or a sale) —
+ * SQLite's own foreign key enforcement (PRAGMA foreign_keys = ON) is
+ * what actually blocks it; this just turns that into a clear message
+ * instead of a raw database error. This is intentionally NOT possible
+ * to override — a truck with real history should never be silently
+ * erased, only its stock_status changed via the normal reserve/sale flows.
+ */
+function deleteTruck(context, truck_id) {
+  requirePermission(context, 'stock.delete');
+  const truck = getTruck(context, truck_id);
+  if (!truck) throw new AppError('NOT_FOUND', 'truck not found for this dealer');
+  const db = getDb();
+  try {
+    db.prepare('DELETE FROM trucks WHERE dealer_id = ? AND truck_id = ?').run(context.dealer_id, truck_id);
+  } catch (e) {
+    if (/FOREIGN KEY/i.test(e.message)) {
+      throw new AppError('VALIDATION_ERROR', 'ลบไม่ได้ เพราะมีรูปภาพ ลูกค้าที่สนใจ หรือประวัติการขายผูกกับรถคันนี้อยู่แล้ว');
+    }
+    throw e;
+  }
+  audit.record(context, { action_type: 'DELETE_TRUCK', entity: 'truck', entity_id: truck_id, old_value: JSON.stringify(truck) });
+}
+
+module.exports = { STOCK_STATUSES, getTruck, searchTrucks, addTruck, editTruckDetails, deleteTruck, reserveTruck, cancelReservation };
