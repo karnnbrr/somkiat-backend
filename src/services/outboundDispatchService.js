@@ -32,7 +32,11 @@ async function dispatchOne(context, message_id, sender = realSender) {
   }
 
   try {
-    await sender.sendMessage({ recipientPsid: msg.recipient_psid, text: msg.message_content });
+    if (msg.message_type === 'IMAGE') {
+      await sender.sendImage({ recipientPsid: msg.recipient_psid, imageUrl: msg.message_content });
+    } else {
+      await sender.sendMessage({ recipientPsid: msg.recipient_psid, text: msg.message_content });
+    }
     db.prepare("UPDATE outbound_messages SET status = 'SENT' WHERE dealer_id = ? AND message_id = ?").run(context.dealer_id, message_id);
     audit.record(context, { action_type: 'OUTBOUND_MESSAGE_SENT', entity: 'outbound_message', entity_id: message_id });
     return { status: 'SENT', alreadyHandled: false };

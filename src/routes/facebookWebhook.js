@@ -69,6 +69,33 @@ async function respondToMessage(context, { conversation_id, page_id, recipient_p
       content: m.text || '',
     }));
     const result = await runConversationTurn(context, history);
+
+    // Send any real photos the AI looked up as actual image messages —
+    // this is decided structurally here, not left to the AI's judgment,
+    // matching the AI Tool Boundary philosophy elsewhere in this project.
+    // Only genuine http(s) URLs can be sent: Facebook's Send API fetches
+    // the image itself from that URL — a base64 data: URI (what this
+    // project's direct-file-upload feature stores) is never usable here,
+    // since it never existed as a real internet-reachable resource.
+    const photoLookups = (result.toolCallsMade || []).filter((c) => c.name === 'getTruckPhotos' && !c.result.is_error);
+    for (const call of photoLookups) {
+      let photos = [];
+      try { photos = JSON.parse(call.result.content); } catch (_) { /* ignore malformed */ }
+      const sendable = photos.find((p) => /^https?:\/\//.test(p.storage_reference || ''));
+      if (!sendable) {
+        if (photos.length > 0) {
+          console.log(`[${correlationId}] getTruckPhotos found ${photos.length} photo(s) but none had a real http(s) URL (likely uploaded via direct file upload, which stores base64 — cannot be sent to Facebook) — skipping image send`);
+        }
+        continue;
+      }
+      const queuedImage = outboundMessageService.queueMessage(context, {
+        conversation_id, page_id, recipient_psid, message_type: 'IMAGE', message_content: sendable.storage_reference,
+      });
+      await dispatchOne(context, queuedImage.message_id).catch((sendErr) => {
+        console.error(`[${correlationId}] outbound IMAGE send failed:`, sendErr.message);
+      });
+    }
+
     if (!result.finalText) return; // AI made only tool calls / a Handoff this turn, nothing to say back yet
 
     const queued = outboundMessageService.queueMessage(context, {

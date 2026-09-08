@@ -14,12 +14,13 @@ function queueMessage(context, { conversation_id, page_id, recipient_psid, messa
   if (!recipient_psid || !message_content) {
     throw new AppError('VALIDATION_ERROR', 'recipient_psid and message_content are required');
   }
+  const type = message_type === 'IMAGE' ? 'IMAGE' : 'TEXT';
   const db = getDb();
   const message_id = 'OUT-' + crypto.randomUUID();
   db.prepare(
-    `INSERT INTO outbound_messages (message_id, dealer_id, page_id, conversation_id, recipient_psid, message_content, status, correlation_id)
-     VALUES (?, ?, ?, ?, ?, ?, 'QUEUED', ?)`
-  ).run(message_id, context.dealer_id, page_id || null, conversation_id || null, recipient_psid, message_content, context.request_id || null);
+    `INSERT INTO outbound_messages (message_id, dealer_id, page_id, conversation_id, recipient_psid, message_content, message_type, status, correlation_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'QUEUED', ?)`
+  ).run(message_id, context.dealer_id, page_id || null, conversation_id || null, recipient_psid, message_content, type, context.request_id || null);
   audit.record(context, { action_type: 'OUTBOUND_MESSAGE_QUEUED', entity: 'outbound_message', entity_id: message_id });
   return db.prepare('SELECT * FROM outbound_messages WHERE message_id = ?').get(message_id);
 }

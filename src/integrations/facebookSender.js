@@ -31,17 +31,14 @@ function isConfigured() {
   return !!process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
 }
 
-/**
- * Real Graph API call shape. Will only ever execute if a real
- * FACEBOOK_PAGE_ACCESS_TOKEN is configured; otherwise throws immediately.
- * NEVER put the token in a log line, error message, or AI context.
- */
-function sendMessage({ recipientPsid, text }) {
+/** Shared HTTP call to Facebook's Send API — both sendMessage and
+ *  sendImage build a `message` object and hand it to this. */
+function postToMessagesApi(messagePayload) {
   if (!isConfigured()) {
     throw new AppError('FACEBOOK_SEND_FAILED', 'BLOCKED: NEEDS CREDENTIALS — FACEBOOK_PAGE_ACCESS_TOKEN is not configured in this environment');
   }
   const token = process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
-  const payload = JSON.stringify({ recipient: { id: recipientPsid }, message: { text } });
+  const payload = JSON.stringify(messagePayload);
 
   const url = `${getApiBaseUrl()}/v19.0/me/messages?access_token=${encodeURIComponent(token)}`;
   const transport = url.startsWith('http://') ? http : https;
@@ -76,4 +73,35 @@ function sendMessage({ recipientPsid, text }) {
   });
 }
 
-module.exports = { sendMessage, isConfigured };
+/**
+ * Real Graph API call shape. Will only ever execute if a real
+ * FACEBOOK_PAGE_ACCESS_TOKEN is configured; otherwise throws immediately.
+ * NEVER put the token in a log line, error message, or AI context.
+ */
+function sendMessage({ recipientPsid, text }) {
+  return postToMessagesApi({ recipient: { id: recipientPsid }, message: { text } });
+}
+
+/**
+ * Sends an image via Facebook's attachment payload shape.
+ *
+ * HARD REQUIREMENT: imageUrl must be a real, publicly-fetchable
+ * http(s) URL — Facebook's servers fetch the image FROM that URL
+ * themselves. A base64 data: URI (which is what this project's
+ * direct-file-upload feature stores) is NOT usable here at all; it
+ * only ever existed inside a browser/API response, never as a real
+ * internet-reachable resource Facebook could retrieve. Callers must
+ * check this before calling sendImage — see aiOrchestrator.js, which
+ * only calls this for photos whose storage_reference is a real URL.
+ */
+function sendImage({ recipientPsid, imageUrl }) {
+  if (!/^https?:\/\//.test(imageUrl || '')) {
+    throw new AppError('FACEBOOK_SEND_FAILED', 'sendImage requires a real http(s) URL — base64 data URLs cannot be fetched by Facebook');
+  }
+  return postToMessagesApi({
+    recipient: { id: recipientPsid },
+    message: { attachment: { type: 'image', payload: { url: imageUrl, is_reusable: true } } },
+  });
+}
+
+module.exports = { sendMessage, sendImage, isConfigured };
