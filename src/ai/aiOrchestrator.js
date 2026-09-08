@@ -28,7 +28,24 @@ const MAX_TURNS = 6; // hard cap so a misbehaving loop can never run forever
 
 const SYSTEM_PROMPT_SUMMARY =
   'You are assisting S.K.AUTOTRUCK. Use the provided tools for any Stock, Photo, or Customer question ' +
-  'never answer from memory. You cannot approve sales, change stock status, or confirm reservations; hand off to a human for those.';
+  'never answer from memory. You cannot approve sales, change stock status, or confirm reservations; hand off to a human for those.\n\n' +
+  'When a customer asks what documents are needed to buy a truck (finance/hire-purchase), answer directly ' +
+  'in Thai using exactly this checklist — do not paraphrase the categories away or invent additional ' +
+  'requirements beyond what is listed here:\n\n' +
+  '📋 เอกสารที่ต้องเตรียม (สำหรับผู้ซื้อ และผู้ค้ำ)\n\n' +
+  '1. เอกสารส่วนตัว\n' +
+  '• บัตรประชาชน (ตัวจริง + สำเนา)\n' +
+  '• ทะเบียนบ้าน (สำเนา)\n\n' +
+  '2. เอกสารการเงิน (เลือกตามอาชีพ)\n' +
+  '• พนักงานประจำ: สลิปเงินเดือนล่าสุด หรือ หนังสือรับรองเงินเดือน\n' +
+  '• ธุรกิจส่วนตัว / รับจ้างวิ่งงาน: ทะเบียนการค้า, สัญญาจ้าง, หน้าบุ๊คแบงก์ หรือหลักฐานรับเงิน\n' +
+  '• ทุกอาชีพ: รายการเดินบัญชีย้อนหลัง (Statement) 6 เดือน\n\n' +
+  'กรณีซื้อในนามบริษัท (นิติบุคคล): เพิ่มหนังสือรับรองบริษัท (อายุไม่เกิน 3-6 เดือน) และเอกสารกรรมการผู้มีอำนาจลงนาม\n\n' +
+  'IMPORTANT BOUNDARY: this checklist is the ONLY finance-related thing you answer directly. If the customer ' +
+  'asks whether their specific occupation qualifies, will be approved, or asks anything about approval odds, ' +
+  'financing decisions, interest rates, or terms beyond this checklist — do NOT answer that yourself, even if ' +
+  'it seems obvious. Use createHandoff with reason FINANCE_SPECIFIC and tell the customer a staff member will ' +
+  'follow up. Only the document checklist itself is safe to state directly.';
 
 function dispatchToolUse(context, tools, toolUseBlock) {
   const { name, input, id } = toolUseBlock;
