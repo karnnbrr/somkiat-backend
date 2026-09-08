@@ -22,9 +22,14 @@ function uploadPhoto(context, { truck_id, file_name, content_hash, storage_refer
   const truck = db.prepare('SELECT 1 FROM trucks WHERE dealer_id = ? AND truck_id = ?').get(context.dealer_id, truck_id);
   if (!truck) throw new AppError('VALIDATION_ERROR', 'truck_id does not exist for this dealer');
 
-  const dup = db.prepare(
-    `SELECT photo_id FROM truck_photos WHERE dealer_id = ? AND truck_id = ? AND content_hash = ? AND photo_status = 'ACTIVE'`
-  ).get(context.dealer_id, truck_id, content_hash);
+  // content_hash is optional (the URL-paste upload flow never provides one) —
+  // SQLite bindings reject `undefined` outright, and there's nothing
+  // meaningful to duplicate-check against without a real hash anyway.
+  const dup = content_hash
+    ? db.prepare(
+        `SELECT photo_id FROM truck_photos WHERE dealer_id = ? AND truck_id = ? AND content_hash = ? AND photo_status = 'ACTIVE'`
+      ).get(context.dealer_id, truck_id, content_hash)
+    : null;
   if (dup) throw new AppError('VALIDATION_ERROR', 'duplicate photo content already exists for this truck');
 
   const maxOrderRow = db.prepare(

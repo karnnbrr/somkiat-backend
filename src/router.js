@@ -107,7 +107,7 @@ function sendJson(res, status, payload) {
   res.end(body);
 }
 
-const MAX_BODY_BYTES = 1024 * 1024; // 1MB — generous for JSON API payloads, small enough to bound abuse
+const MAX_BODY_BYTES = 8 * 1024 * 1024; // 8MB — raised from 1MB to fit a compressed photo as a base64 data URL (photos are resized/compressed client-side before upload; see the dashboard's photo upload code)
 
 /**
  * Reads the raw request body AND parses it as JSON, returning both.
