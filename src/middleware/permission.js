@@ -24,7 +24,7 @@ const PERMISSIONS = {
     'truck_interest.create', 'follow_up.create', 'follow_up.complete',
     'handoff.accept', 'handoff.update_status', 'sale.draft',
     'sale.approve', 'sale.void', 'stock.manual_edit', 'stock.delete', 'photo.restore', 'photo.purge',
-    'conflict.resolve',
+    'conflict.resolve', 'dealer.edit_info',
   ]),
   // 'ai' pseudo-role: only ever used by contextFromFacebookPage(). Deliberately
   // granted NO permissions here — AI must go through ai/aiTools.js, which has

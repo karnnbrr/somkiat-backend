@@ -8,6 +8,7 @@
 // ============================================================
 const { contextFromPublicSite, DealerContextError } = require('../context/dealerContext');
 const publicCatalogService = require('../services/publicCatalogService');
+const dealerInfoService = require('../services/dealerInfoService');
 const { AppError } = require('../errors');
 
 function resolvePublicContext(correlationId) {
@@ -44,6 +45,11 @@ function register(router) {
     const context = resolvePublicContext(correlationId);
     const photos = publicCatalogService.listTruckPhotos(context, params.truck_id);
     return { data: { photos } };
+  });
+
+  router.get('/api/public/dealer-info', async ({ correlationId }) => {
+    const context = resolvePublicContext(correlationId);
+    return { data: { dealer: dealerInfoService.getDealerInfo(context) } };
   });
 }
 

@@ -26,6 +26,7 @@ function buildRouter() {
   require('./routes/conversations').register(router);
   require('./routes/attribution').register(router);
   require('./routes/public').register(router);
+  require('./routes/dealerInfo').register(router);
   return router;
 }
 
