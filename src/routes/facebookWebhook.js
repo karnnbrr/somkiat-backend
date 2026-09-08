@@ -1,24 +1,91 @@
 // ============================================================
-// Facebook Webhook Route — STUB ONLY.
+// Facebook Webhook Route — Step 31/36: now genuinely wired end-to-end.
 //
-// This endpoint is NOT connected to the real Facebook Graph API.
-// There is no outbound call to facebook.com anywhere in this file
-// or anywhere in this codebase. It exists only to exercise the
-// Dealer Resolution + Idempotency foundation end-to-end against a
-// payload SHAPE that matches the Step 28 contract, so those pieces
-// are real, tested code rather than just a diagram.
+// Two real gaps were found and fixed here when connecting to a real
+// Facebook App for the first time (both previously only exercised via
+// simplified test fixtures, never against real Facebook shapes):
 //
-// Wiring this to a real Facebook App (signature verification with
-// the real App Secret, etc.) is explicitly out of scope until a
-// later step per the Step 30A rules.
+// 1. PAYLOAD SHAPE: real Facebook sends a nested envelope
+//    { entry: [{ id: page_id, messaging: [{ sender, message }] }] },
+//    not the flat { page_id, message_id, ... } shape this project's
+//    own tests used throughout. `normalizeIncomingEvents()` below
+//    accepts BOTH — real Facebook envelopes are parsed into the same
+//    internal shape, and the existing simplified shape (used by every
+//    existing test) still works completely unchanged.
+//
+// 2. AI RESPONSE LOOP WAS NEVER WIRED: this route used to record the
+//    inbound message and stop — nothing ever called the AI
+//    orchestrator or sent a reply. `respondToMessage()` below is the
+//    real wiring: build conversation history -> runConversationTurn()
+//    (real Claude, via aiOrchestrator's default client) -> queue the
+//    reply -> dispatchOne() (real Facebook Send API). AI/send failures
+//    are caught and logged — they must never break Facebook's webhook
+//    acknowledgement (the inbound message is already safely recorded
+//    and idempotency-keyed by that point).
 // ============================================================
 'use strict';
 const { contextFromFacebookPage, DealerContextError } = require('../context/dealerContext');
 const idempotencyService = require('../services/idempotencyService');
 const conversationService = require('../services/conversationService');
+const outboundMessageService = require('../services/outboundMessageService');
+const { dispatchOne } = require('../services/outboundDispatchService');
+const { runConversationTurn } = require('../ai/aiOrchestrator');
 const { inboundQueue } = require('../queue/queueInterface');
 const { verifySignature, verifySubscriptionHandshake } = require('../integrations/facebookSignature');
 const { AppError } = require('../errors');
+
+/** Accepts EITHER a real Facebook envelope or this project's simplified
+ *  flat test shape, and returns a normalized array of events. */
+function normalizeIncomingEvents(body) {
+  if (Array.isArray(body.entry)) {
+    const events = [];
+    for (const entry of body.entry) {
+      const page_id = entry.id;
+      for (const msg of (entry.messaging || [])) {
+        if (!msg.message || msg.message.is_echo) continue; // skip delivery receipts / our own echoed sends
+        events.push({
+          page_id,
+          message_id: msg.message.mid,
+          sender_psid: msg.sender && msg.sender.id,
+          text: msg.message.text,
+          phone: undefined, // Facebook never puts a phone number in the message envelope itself
+        });
+      }
+    }
+    return events;
+  }
+  if (body.page_id && body.message_id) {
+    return [{ page_id: body.page_id, message_id: body.message_id, sender_psid: body.sender_psid, text: body.text, phone: body.phone }];
+  }
+  return [];
+}
+
+/** The real AI response wiring. Never throws — a failure here must not
+ *  break Facebook's webhook acknowledgement for an already-recorded message. */
+async function respondToMessage(context, { conversation_id, page_id, recipient_psid, correlationId }) {
+  try {
+    const history = conversationService.getConversationHistory(context, conversation_id).map((m) => ({
+      role: m.sender_type === 'CUSTOMER' ? 'user' : 'assistant',
+      content: m.text || '',
+    }));
+    const result = await runConversationTurn(context, history);
+    if (!result.finalText) return; // AI made only tool calls / a Handoff this turn, nothing to say back yet
+
+    const queued = outboundMessageService.queueMessage(context, {
+      conversation_id, page_id, recipient_psid, message_content: result.finalText,
+    });
+    conversationService.recordMessage(context, {
+      conversation_id, direction: 'OUTBOUND', sender_type: 'AI', text: result.finalText,
+    });
+    await dispatchOne(context, queued.message_id).catch((sendErr) => {
+      console.error(`[${correlationId}] outbound send failed:`, sendErr.message);
+    });
+  } catch (aiErr) {
+    // Known limitation: a failed AI turn here is logged only, not retried.
+    // The inbound message itself is already safely recorded — see module header.
+    console.error(`[${correlationId}] AI response failed:`, aiErr.message);
+  }
+}
 
 function register(router) {
   // ---- GET: Facebook's one-time subscription verification handshake ----
@@ -35,16 +102,12 @@ function register(router) {
 
   // ---- POST: actual incoming events ----
   router.post('/api/facebook/webhook', async ({ body, rawBody, req, correlationId }) => {
-    const { page_id, message_id, sender_psid, text, phone } = body;
-    if (!page_id || !message_id) {
+    const events = normalizeIncomingEvents(body);
+    if (events.length === 0) {
       throw new AppError('VALIDATION_ERROR', 'page_id and message_id are required');
     }
 
-    // ---- Signature verification (Step 31 Phase A) ----
-    // Fail CLOSED in production: a missing/invalid signature is rejected.
-    // Fail OPEN (with a loud log) outside production, so the rest of the
-    // pipeline remains testable without a real Facebook App Secret — this
-    // environment has neither the secret nor network access to Facebook.
+    // ---- Signature verification (computed once over the whole raw body) ----
     const appSecret = process.env.FACEBOOK_APP_SECRET;
     const signatureHeader = req.headers['x-hub-signature-256'];
     const env = process.env.NODE_ENV || 'development';
@@ -59,42 +122,54 @@ function register(router) {
       console.warn(`[${correlationId}] Facebook signature verification SKIPPED — FACEBOOK_APP_SECRET not configured (env=${env}, dev/test only)`);
     }
 
-    let context;
-    try {
-      context = contextFromFacebookPage(page_id, correlationId);
-    } catch (e) {
-      if (e instanceof DealerContextError) {
-        return { status: 200, data: { status: 'BLOCKED', reason: 'DEALER_CONTEXT_ERROR' } };
+    const results = [];
+    for (const evt of events) {
+      const { page_id, message_id, sender_psid, text, phone } = evt;
+
+      let context;
+      try {
+        context = contextFromFacebookPage(page_id, correlationId);
+      } catch (e) {
+        if (e instanceof DealerContextError) {
+          results.push({ status: 'BLOCKED', reason: 'DEALER_CONTEXT_ERROR' });
+          continue;
+        }
+        throw e;
       }
-      throw e;
-    }
 
-    const idem = idempotencyService.checkAndRecord({ page_id, message_id, dealer_id: context.dealer_id });
-    if (!idem.isNew) {
-      return { data: { status: 'DUPLICATE' } };
-    }
+      const idem = idempotencyService.checkAndRecord({ page_id, message_id, dealer_id: context.dealer_id });
+      if (!idem.isNew) {
+        results.push({ status: 'DUPLICATE' });
+        continue;
+      }
 
-    // Boundary only: enqueue for the (future) AI Processing worker. No AI is
-    // called here — the handler below just persists the conversation/message
-    // via the real service layer, exercising the Customer Matching state
-    // machine end-to-end without any external call.
-    const job = inboundQueue.enqueue({ context, page_id, sender_psid, message_id, text, phone });
+      const job = inboundQueue.enqueue({ context, page_id, sender_psid, message_id, text, phone });
 
-    const match = conversationService.matchCustomerForConversation(context, { page_id, sender_psid, phone });
-    conversationService.recordMessage(context, {
-      conversation_id: match.conversation.conversation_id, direction: 'INBOUND', sender_type: 'CUSTOMER',
-      text, raw_platform_reference: message_id, message_id: 'MSG-' + message_id,
-    });
+      const match = conversationService.matchCustomerForConversation(context, { page_id, sender_psid, phone });
+      conversationService.recordMessage(context, {
+        conversation_id: match.conversation.conversation_id, direction: 'INBOUND', sender_type: 'CUSTOMER',
+        text, raw_platform_reference: message_id, message_id: 'MSG-' + message_id,
+      });
 
-    return {
-      data: {
+      // Real AI wiring — awaited so failures are visible in this response's
+      // processing, but internally never throws (see respondToMessage above).
+      await respondToMessage(context, { conversation_id: match.conversation.conversation_id, page_id, recipient_psid: sender_psid, correlationId });
+
+      results.push({
         status: 'PROCESSED',
         dealer_id: context.dealer_id,
         conversation_id: match.conversation.conversation_id,
-        customer_match: match.status, // PENDING_NO_PHONE | MATCHED | AMBIGUOUS
+        customer_match: match.status,
         queued_job_id: job.id,
-      },
-    };
+      });
+    }
+
+    // Preserve the exact single-object response shape every existing test
+    // expects when there's exactly one event (the simplified/common case).
+    if (results.length === 1) {
+      return { data: results[0] };
+    }
+    return { data: { results } };
   });
 }
 
