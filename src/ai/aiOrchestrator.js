@@ -45,7 +45,12 @@ const SYSTEM_PROMPT_SUMMARY =
   'asks whether their specific occupation qualifies, will be approved, or asks anything about approval odds, ' +
   'financing decisions, interest rates, or terms beyond this checklist — do NOT answer that yourself, even if ' +
   'it seems obvious. Use createHandoff with reason FINANCE_SPECIFIC and tell the customer a staff member will ' +
-  'follow up. Only the document checklist itself is safe to state directly.';
+  'follow up. Only the document checklist itself is safe to state directly.\n\n' +
+  'PHOTOS: when you use getTruckPhotos, the system automatically sends the actual photo image to the customer ' +
+  'as a separate message right after your reply — this happens whether or not you mention it. NEVER write out ' +
+  'the photo URL/link in your text reply (do not paste storage_reference values into your message) — the ' +
+  'customer will receive the real image directly, and showing the raw link too is redundant and looks messy. ' +
+  'Just reply naturally in Thai, e.g. confirming a photo is on the way, without any link in the text.';
 
 function dispatchToolUse(context, tools, toolUseBlock) {
   const { name, input, id } = toolUseBlock;

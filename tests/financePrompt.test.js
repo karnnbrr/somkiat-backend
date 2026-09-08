@@ -42,6 +42,19 @@ test('The system prompt explicitly instructs handoff for occupation-eligibility 
   assert.match(capturedSystem, /do NOT answer that yourself/);
 });
 
+test('The system prompt explicitly instructs Claude to never write photo URLs in its text reply', async () => {
+  let capturedSystem = null;
+  const fixtureClient = {
+    sendMessage: async ({ system }) => {
+      capturedSystem = system;
+      return { content: [{ type: 'text', text: 'ok' }] };
+    },
+  };
+  await runConversationTurn(somkiat, [{ role: 'user', content: 'ขอรูปหน่อยครับ' }], fixtureClient);
+  assert.match(capturedSystem, /NEVER write out/);
+  assert.match(capturedSystem, /automatically sends the actual photo image/);
+});
+
 test('Existing AI Tool Boundary language (cannot approve sales/change stock/confirm reservations) is still present, unchanged', async () => {
   let capturedSystem = null;
   const fixtureClient = {
