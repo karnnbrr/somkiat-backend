@@ -110,7 +110,12 @@ async function respondToMessage(context, { conversation_id, page_id, recipient_p
   } catch (aiErr) {
     // Known limitation: a failed AI turn here is logged only, not retried.
     // The inbound message itself is already safely recorded — see module header.
-    console.error(`[${correlationId}] AI response failed:`, aiErr.message);
+    // Log the FULL error detail (never just .message) — for an AI_ERROR from
+    // claudeService.js this includes the real response body Claude sent
+    // back explaining why (e.g. billing/credit issue, invalid request
+    // field, etc.) — this was previously discarded, making a 400 essentially
+    // undiagnosable from the logs alone.
+    console.error(`[${correlationId}] AI response failed: ${aiErr.message}`, aiErr.details ? JSON.stringify(aiErr.details) : '');
   }
 }
 
