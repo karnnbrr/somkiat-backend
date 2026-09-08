@@ -87,7 +87,7 @@ test('E2E: full scenario — new customer -> stock -> photos -> reservation hand
   // ---- Steps 8-9: customer asks for photos -> Claude (fixture) calls getTruckPhotos ----
   const claudeFixture2 = {
     sendMessage: async () => ({
-      content: [{ type: 'tool_use', id: 'tu_2', name: 'getTruckPhotos', input: 'TRK-001' }],
+      content: [{ type: 'tool_use', id: 'tu_2', name: 'getTruckPhotos', input: { truck_id: 'TRK-001' } }],
     }),
   };
   const turn2 = await runConversationTurn(context, [{ role: 'user', content: 'ขอรูปด้วยครับ' }], claudeFixture2);

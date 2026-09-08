@@ -57,10 +57,10 @@ function makeAiTools(context) {
   return Object.freeze({
     // ---- READ ----
     lookupStock: (criteria) => stockService.searchTrucks(context, sanitizeCriteria(context, criteria)),
-    getTruck: (truck_id) => stockService.getTruck(context, truck_id),
-    getTruckPhotos: (truck_id) => photoService.listActivePhotos(context, truck_id),
-    findCustomerByPhone: (phone) => crmService.findCustomerByPhone(context, phone),
-    listTruckInterests: (customer_id) => crmService.listTruckInterestsForCustomer(context, customer_id),
+    getTruck: ({ truck_id } = {}) => stockService.getTruck(context, truck_id),
+    getTruckPhotos: ({ truck_id } = {}) => photoService.listActivePhotos(context, truck_id),
+    findCustomerByPhone: ({ phone } = {}) => crmService.findCustomerByPhone(context, phone),
+    listTruckInterests: ({ customer_id } = {}) => crmService.listTruckInterestsForCustomer(context, customer_id),
 
     // ---- LOW-RISK WRITE ----
     createCustomer: (input) => crmService.createCustomer(context, sanitizeCriteria(context, input)),
@@ -72,7 +72,7 @@ function makeAiTools(context) {
     // returns that status to the caller instead of guessing (caller must Handoff).
     matchCustomerForConversation: (input) => conversationService.matchCustomerForConversation(context, sanitizeCriteria(context, input)),
     recordInboundMessage: (input) => conversationService.recordMessage(context, { ...sanitizeCriteria(context, input), direction: 'INBOUND', sender_type: 'CUSTOMER' }),
-    getConversationHistory: (conversation_id) => conversationService.getConversationHistory(context, conversation_id),
+    getConversationHistory: ({ conversation_id } = {}) => conversationService.getConversationHistory(context, conversation_id),
 
     // ---- HANDOFF (creates a request for a human — never an approval) ----
     createHandoff: (input) => handoffService.createHandoff(context, sanitizeCriteria(context, input)),

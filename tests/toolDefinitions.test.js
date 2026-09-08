@@ -36,6 +36,12 @@ test('No forbidden tool name ever appears in TOOL_DEFINITIONS', () => {
   }
 });
 
+test('Step 32 fix: every TOOL_DEFINITIONS input_schema is a valid object schema (Anthropic rejects any non-object schema with a 400 — this bug reached real production once already)', () => {
+  for (const def of TOOL_DEFINITIONS) {
+    assert.strictEqual(def.input_schema.type, 'object', `${def.name}'s input_schema.type must be "object" — Anthropic's real API rejects tool calls whose input isn't a JSON object at the top level`);
+  }
+});
+
 test('aiOrchestrator now actually passes tools to the Claude client (regression guard for the Step 32 gap)', () => {
   const src = require('node:fs').readFileSync(require.resolve('../src/ai/aiOrchestrator.js'), 'utf8');
   assert.match(src, /tools:\s*TOOL_DEFINITIONS/, 'aiOrchestrator.js must pass the tools schema to client.sendMessage(), or a real Claude call could never use any tool');

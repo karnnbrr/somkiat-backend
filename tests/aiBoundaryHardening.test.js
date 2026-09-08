@@ -58,6 +58,6 @@ test('25/26. AI tool object is frozen — cannot be extended at runtime to add a
 test('26b. Each dealer gets its OWN tools object bound at creation time — proven with colliding truck_id', () => {
   const somkiatTools = makeAiTools(somkiat);
   const abcTools = makeAiTools(abc);
-  assert.strictEqual(somkiatTools.getTruck('TRK-001').brand, 'ISUZU');
-  assert.strictEqual(abcTools.getTruck('TRK-001').brand, 'FUSO');
+  assert.strictEqual(somkiatTools.getTruck({ truck_id: 'TRK-001' }).brand, 'ISUZU');
+  assert.strictEqual(abcTools.getTruck({ truck_id: 'TRK-001' }).brand, 'FUSO');
 });

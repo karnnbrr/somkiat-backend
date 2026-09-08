@@ -28,22 +28,34 @@ const TOOL_DEFINITIONS = [
   {
     name: 'getTruck',
     description: 'Get one truck by its exact truck_id.',
-    input_schema: { type: 'string', description: 'The truck_id, e.g. "TRK-001"' },
+    input_schema: {
+      type: 'object', required: ['truck_id'],
+      properties: { truck_id: { type: 'string', description: 'The truck_id, e.g. "TRK-001"' } },
+    },
   },
   {
     name: 'getTruckPhotos',
     description: 'Get the ACTIVE photos for one truck by its exact truck_id, cover first.',
-    input_schema: { type: 'string', description: 'The truck_id, e.g. "TRK-001"' },
+    input_schema: {
+      type: 'object', required: ['truck_id'],
+      properties: { truck_id: { type: 'string', description: 'The truck_id, e.g. "TRK-001"' } },
+    },
   },
   {
     name: 'findCustomerByPhone',
     description: 'Look up a customer in this dealer by phone number.',
-    input_schema: { type: 'string', description: 'Phone number' },
+    input_schema: {
+      type: 'object', required: ['phone'],
+      properties: { phone: { type: 'string', description: 'Phone number' } },
+    },
   },
   {
     name: 'listTruckInterests',
     description: 'List all trucks a customer has expressed interest in.',
-    input_schema: { type: 'string', description: 'customer_id' },
+    input_schema: {
+      type: 'object', required: ['customer_id'],
+      properties: { customer_id: { type: 'string' } },
+    },
   },
   {
     name: 'createCustomer',
@@ -102,7 +114,10 @@ const TOOL_DEFINITIONS = [
   {
     name: 'getConversationHistory',
     description: 'Get the message history for a conversation.',
-    input_schema: { type: 'string', description: 'conversation_id' },
+    input_schema: {
+      type: 'object', required: ['conversation_id'],
+      properties: { conversation_id: { type: 'string' } },
+    },
   },
   {
     name: 'createHandoff',

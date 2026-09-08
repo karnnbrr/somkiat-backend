@@ -37,8 +37,8 @@ test('14. AI Tool ไม่รับ dealer_id จาก AI — function arity p
 test('AI tools are scoped to the dealer baked into the context at creation time — proven with colliding truck_id', () => {
   const somkiatTools = makeAiTools(managerCtx);
   const abcTools = makeAiTools(abcManagerCtx);
-  const somkiatTruck = somkiatTools.getTruck('TRK-001');
-  const abcTruck = abcTools.getTruck('TRK-001');
+  const somkiatTruck = somkiatTools.getTruck({ truck_id: 'TRK-001' });
+  const abcTruck = abcTools.getTruck({ truck_id: 'TRK-001' });
   assert.strictEqual(somkiatTruck.brand, 'ISUZU');
   assert.strictEqual(abcTruck.brand, 'FUSO');
 });

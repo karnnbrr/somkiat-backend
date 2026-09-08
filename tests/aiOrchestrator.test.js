@@ -53,7 +53,7 @@ test('Claude เรียก lookupStock ได้ — orchestrator dispatches a
 
 test('Claude เรียก getTruckPhotos ได้', async () => {
   const client = fixtureClient([
-    { content: [{ type: 'tool_use', id: 'tu_2', name: 'getTruckPhotos', input: 'TRK-001' }] },
+    { content: [{ type: 'tool_use', id: 'tu_2', name: 'getTruckPhotos', input: { truck_id: 'TRK-001' } }] },
     { content: [{ type: 'text', text: 'ส่งรูปให้แล้วครับ' }] },
   ]);
   const result = await runConversationTurn(somkiat, [{ role: 'user', content: 'ขอรูป' }], client);
