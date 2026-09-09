@@ -55,3 +55,13 @@ test('End-to-end: publicCatalogService returns the real cover photo set by the a
   const truck = listed.find((t) => t.truck_id === 'TRK-E');
   assert.strictEqual(truck.cover_photo, 'https://example.com/e-cover.jpg');
 });
+
+test('Admin-facing getTruck/searchTrucks also include cover_photo (dashboard cards had the same bug)', () => {
+  stockService.addTruck(managerCtx, { truck_id: 'TRK-F', brand: 'ISUZU', model: 'NLR', price: 600000, down_payment: 20000, installment_amount: 14000, installment_count: 60 });
+  photoService.uploadPhoto(managerCtx, { truck_id: 'TRK-F', file_name: 'a.jpg', storage_reference: 'https://example.com/f-cover.jpg', content_hash: 'hf1' });
+  const single = stockService.getTruck(managerCtx, 'TRK-F');
+  assert.strictEqual(single.cover_photo, 'https://example.com/f-cover.jpg');
+  const list = stockService.searchTrucks(managerCtx);
+  const found = list.find((t) => t.truck_id === 'TRK-F');
+  assert.strictEqual(found.cover_photo, 'https://example.com/f-cover.jpg');
+});

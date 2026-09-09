@@ -15,16 +15,25 @@ const STOCK_STATUSES = ['พร้อมขาย', 'จองแล้ว', '�
 
 function getTruck(context, truck_id) {
   const db = getDb();
-  return db.prepare('SELECT * FROM trucks WHERE dealer_id = ? AND truck_id = ?').get(context.dealer_id, truck_id) || null;
+  return db.prepare(
+    `SELECT t.*, (SELECT p.storage_reference FROM truck_photos p
+                  WHERE p.dealer_id = t.dealer_id AND p.truck_id = t.truck_id
+                    AND p.is_cover = 1 AND p.photo_status = 'ACTIVE' LIMIT 1) AS cover_photo
+     FROM trucks t WHERE t.dealer_id = ? AND t.truck_id = ?`
+  ).get(context.dealer_id, truck_id) || null;
 }
 
 function searchTrucks(context, { model, status, maxPrice } = {}) {
   const db = getDb();
-  let sql = 'SELECT * FROM trucks WHERE dealer_id = ?';
+  let sql = `
+    SELECT t.*, (SELECT p.storage_reference FROM truck_photos p
+                 WHERE p.dealer_id = t.dealer_id AND p.truck_id = t.truck_id
+                   AND p.is_cover = 1 AND p.photo_status = 'ACTIVE' LIMIT 1) AS cover_photo
+    FROM trucks t WHERE t.dealer_id = ?`;
   const params = [context.dealer_id];
-  if (model) { sql += ' AND model = ?'; params.push(model); }
-  if (status) { sql += ' AND stock_status = ?'; params.push(status); }
-  if (maxPrice != null) { sql += ' AND price <= ?'; params.push(maxPrice); }
+  if (model) { sql += ' AND t.model = ?'; params.push(model); }
+  if (status) { sql += ' AND t.stock_status = ?'; params.push(status); }
+  if (maxPrice != null) { sql += ' AND t.price <= ?'; params.push(maxPrice); }
   return db.prepare(sql).all(...params);
 }
 
