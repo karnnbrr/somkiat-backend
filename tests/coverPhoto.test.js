@@ -56,6 +56,45 @@ test('End-to-end: publicCatalogService returns the real cover photo set by the a
   assert.strictEqual(truck.cover_photo, 'https://example.com/e-cover.jpg');
 });
 
+test('Retroactive fix: a truck with photos but NO cover set (simulating old pre-fix data) gets one promoted after migration', () => {
+  // Simulate the state of real production data uploaded BEFORE the
+  // is_cover-always-0 bug was fixed — insert directly, bypassing
+  // uploadPhoto()'s (now-fixed) auto-cover logic.
+  stockService.addTruck(managerCtx, { truck_id: 'TRK-RETRO-1', brand: 'ISUZU', model: 'NLR', price: 600000, down_payment: 20000, installment_amount: 14000, installment_count: 60 });
+  db.prepare('INSERT INTO truck_photos (photo_id, dealer_id, truck_id, storage_reference, photo_status, is_cover, display_order) VALUES (?,?,?,?,?,?,?)')
+    .run('PHOTO-RETRO-1', 'DEALER_SOMKIAT', 'TRK-RETRO-1', 'https://example.com/retro1.jpg', 'ACTIVE', 0, 1);
+  db.prepare('INSERT INTO truck_photos (photo_id, dealer_id, truck_id, storage_reference, photo_status, is_cover, display_order) VALUES (?,?,?,?,?,?,?)')
+    .run('PHOTO-RETRO-2', 'DEALER_SOMKIAT', 'TRK-RETRO-1', 'https://example.com/retro2.jpg', 'ACTIVE', 0, 2);
+
+  // Migration 009 already ran once (idempotent, at module load, before
+  // these rows existed) — un-mark it so this test can genuinely re-run
+  // its SQL logic against data inserted AFTER that point, proving the
+  // logic itself is correct independent of the one-time-ever scheduling.
+  db.prepare("DELETE FROM schema_migrations WHERE filename = '009_retroactive_cover_photo.sql'").run();
+  runMigrations();
+
+  const photos = photoService.listActivePhotos(managerCtx, 'TRK-RETRO-1');
+  const covers = photos.filter((p) => p.is_cover === 1);
+  assert.strictEqual(covers.length, 1, 'exactly one photo must become the cover');
+  assert.strictEqual(covers[0].photo_id, 'PHOTO-RETRO-1', 'the EARLIEST photo (by display_order) must be the one promoted');
+});
+
+test('Retroactive fix never overrides a cover a manager already deliberately chose', () => {
+  stockService.addTruck(managerCtx, { truck_id: 'TRK-RETRO-2', brand: 'ISUZU', model: 'NLR', price: 600000, down_payment: 20000, installment_amount: 14000, installment_count: 60 });
+  db.prepare('INSERT INTO truck_photos (photo_id, dealer_id, truck_id, storage_reference, photo_status, is_cover, display_order) VALUES (?,?,?,?,?,?,?)')
+    .run('PHOTO-RETRO-3', 'DEALER_SOMKIAT', 'TRK-RETRO-2', 'https://example.com/retro3.jpg', 'ACTIVE', 0, 1);
+  db.prepare('INSERT INTO truck_photos (photo_id, dealer_id, truck_id, storage_reference, photo_status, is_cover, display_order) VALUES (?,?,?,?,?,?,?)')
+    .run('PHOTO-RETRO-4', 'DEALER_SOMKIAT', 'TRK-RETRO-2', 'https://example.com/retro4.jpg', 'ACTIVE', 1, 2); // manager already chose THIS one
+
+  db.prepare("DELETE FROM schema_migrations WHERE filename = '009_retroactive_cover_photo.sql'").run();
+  runMigrations();
+
+  const photos = photoService.listActivePhotos(managerCtx, 'TRK-RETRO-2');
+  const covers = photos.filter((p) => p.is_cover === 1);
+  assert.strictEqual(covers.length, 1);
+  assert.strictEqual(covers[0].photo_id, 'PHOTO-RETRO-4', 'the manager\'s deliberate choice must never be overridden');
+});
+
 test('Admin-facing getTruck/searchTrucks also include cover_photo (dashboard cards had the same bug)', () => {
   stockService.addTruck(managerCtx, { truck_id: 'TRK-F', brand: 'ISUZU', model: 'NLR', price: 600000, down_payment: 20000, installment_amount: 14000, installment_count: 60 });
   photoService.uploadPhoto(managerCtx, { truck_id: 'TRK-F', file_name: 'a.jpg', storage_reference: 'https://example.com/f-cover.jpg', content_hash: 'hf1' });
