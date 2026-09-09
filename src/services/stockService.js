@@ -23,7 +23,7 @@ function getTruck(context, truck_id) {
   ).get(context.dealer_id, truck_id) || null;
 }
 
-function searchTrucks(context, { model, status, maxPrice } = {}) {
+function searchTrucks(context, { model, status, maxPrice, bodyType } = {}) {
   const db = getDb();
   let sql = `
     SELECT t.*, (SELECT p.storage_reference FROM truck_photos p
@@ -34,6 +34,7 @@ function searchTrucks(context, { model, status, maxPrice } = {}) {
   if (model) { sql += ' AND t.model = ?'; params.push(model); }
   if (status) { sql += ' AND t.stock_status = ?'; params.push(status); }
   if (maxPrice != null) { sql += ' AND t.price <= ?'; params.push(maxPrice); }
+  if (bodyType) { sql += ' AND t.body_type LIKE ?'; params.push(`%${bodyType}%`); }
   return db.prepare(sql).all(...params);
 }
 
@@ -59,11 +60,11 @@ function addTruck(context, input) {
     throw new AppError('VALIDATION_ERROR', 'invalid stock_status');
   }
   db.prepare(
-    `INSERT INTO trucks (truck_id, dealer_id, brand, model, year, price, down_payment, installment_amount, installment_count, body_type, license_plate, stock_status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO trucks (truck_id, dealer_id, brand, model, year, price, down_payment, installment_amount, installment_count, body_type, license_plate, cargo_dimensions, stock_status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(input.truck_id, context.dealer_id, input.brand || null, input.model || null, input.year || null,
     input.price, input.down_payment, input.installment_amount, input.installment_count,
-    input.body_type || null, input.license_plate || null, status);
+    input.body_type || null, input.license_plate || null, input.cargo_dimensions || null, status);
   audit.record(context, { action_type: 'ADD_TRUCK', entity: 'truck', entity_id: input.truck_id, new_value: status });
   return getTruck(context, input.truck_id);
 }
@@ -73,7 +74,7 @@ function editTruckDetails(context, truck_id, updates) {
   const truck = getTruck(context, truck_id);
   if (!truck) throw new AppError('NOT_FOUND', 'truck not found for this dealer');
   const db = getDb();
-  const allowed = ['price', 'down_payment', 'installment_amount', 'installment_count', 'brand', 'model', 'year', 'body_type', 'license_plate'];
+  const allowed = ['price', 'down_payment', 'installment_amount', 'installment_count', 'brand', 'model', 'year', 'body_type', 'license_plate', 'cargo_dimensions'];
   for (const [k, v] of Object.entries(updates)) {
     if (!allowed.includes(k)) continue; // stock_status/reserved_by/truck_id are NOT editable here — see reserve()/sale flows
     if (['price', 'down_payment', 'installment_amount'].includes(k) && (typeof v !== 'number' || v < 0)) {

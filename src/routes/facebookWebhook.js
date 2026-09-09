@@ -81,19 +81,25 @@ async function respondToMessage(context, { conversation_id, page_id, recipient_p
     for (const call of photoLookups) {
       let photos = [];
       try { photos = JSON.parse(call.result.content); } catch (_) { /* ignore malformed */ }
-      const sendable = photos.find((p) => /^https?:\/\//.test(p.storage_reference || ''));
-      if (!sendable) {
+      // Send EVERY real-URL photo, not just the first — a truck typically
+      // has several photos, and leaving the rest for the AI to describe
+      // as text links (which the system prompt explicitly forbids anyway)
+      // meant customers only ever got one actual image.
+      const sendableList = photos.filter((p) => /^https?:\/\//.test(p.storage_reference || ''));
+      if (sendableList.length === 0) {
         if (photos.length > 0) {
           console.log(`[${correlationId}] getTruckPhotos found ${photos.length} photo(s) but none had a real http(s) URL (likely uploaded via direct file upload, which stores base64 — cannot be sent to Facebook) — skipping image send`);
         }
         continue;
       }
-      const queuedImage = outboundMessageService.queueMessage(context, {
-        conversation_id, page_id, recipient_psid, message_type: 'IMAGE', message_content: sendable.storage_reference,
-      });
-      await dispatchOne(context, queuedImage.message_id).catch((sendErr) => {
-        console.error(`[${correlationId}] outbound IMAGE send failed:`, sendErr.message);
-      });
+      for (const sendable of sendableList) {
+        const queuedImage = outboundMessageService.queueMessage(context, {
+          conversation_id, page_id, recipient_psid, message_type: 'IMAGE', message_content: sendable.storage_reference,
+        });
+        await dispatchOne(context, queuedImage.message_id).catch((sendErr) => {
+          console.error(`[${correlationId}] outbound IMAGE send failed:`, sendErr.message);
+        });
+      }
     }
 
     if (!result.finalText) return; // AI made only tool calls / a Handoff this turn, nothing to say back yet

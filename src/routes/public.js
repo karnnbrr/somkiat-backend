@@ -9,6 +9,7 @@
 const { contextFromPublicSite, DealerContextError } = require('../context/dealerContext');
 const publicCatalogService = require('../services/publicCatalogService');
 const dealerInfoService = require('../services/dealerInfoService');
+const newsService = require('../services/newsService');
 const { AppError } = require('../errors');
 
 function resolvePublicContext(correlationId) {
@@ -50,6 +51,18 @@ function register(router) {
   router.get('/api/public/dealer-info', async ({ correlationId }) => {
     const context = resolvePublicContext(correlationId);
     return { data: { dealer: dealerInfoService.getDealerInfo(context) } };
+  });
+
+  router.get('/api/public/news', async ({ correlationId }) => {
+    const context = resolvePublicContext(correlationId);
+    return { data: { posts: newsService.listPublicPosts(context) } };
+  });
+
+  router.get('/api/public/news/:post_id', async ({ params, correlationId }) => {
+    const context = resolvePublicContext(correlationId);
+    const post = newsService.getPublicPost(context, params.post_id);
+    if (!post) throw new AppError('NOT_FOUND', 'post not found');
+    return { data: { post } };
   });
 }
 

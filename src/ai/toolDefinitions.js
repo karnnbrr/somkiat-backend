@@ -15,13 +15,14 @@
 const TOOL_DEFINITIONS = [
   {
     name: 'lookupStock',
-    description: 'Search available trucks in this dealer\'s live stock by model, status, or max price.',
+    description: 'Search available trucks in this dealer\'s live stock by model, status, max price, or body type (e.g. กระบะเหล็ก, ตู้แห้ง, กระบะคอก). Results include cargo_dimensions (the bed/box size, e.g. "2.5 x 5.0 x 2.0 ม.") when a truck has one recorded — use this to answer size questions directly.',
     input_schema: {
       type: 'object',
       properties: {
         model: { type: 'string', description: 'Truck model, e.g. "NLR"' },
         status: { type: 'string', enum: ['พร้อมขาย', 'จองแล้ว', 'ขายแล้ว'] },
         maxPrice: { type: 'number' },
+        bodyType: { type: 'string', description: 'Body/bed type customers ask about, e.g. "กระบะเหล็ก", "ตู้แห้ง", "กระบะคอก" — matches partially, so "กระบะ" alone also finds "กระบะเหล็ก" and "กระบะคอก".' },
       },
     },
   },
