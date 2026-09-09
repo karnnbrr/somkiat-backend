@@ -97,6 +97,20 @@ test('Dealer isolation: DEALER_ABC never sees DEALER_SOMKIAT contact info', asyn
   assert.strictEqual(res.body.dealer.phone, null);
 });
 
+test('hero_image can be set and retrieved through both admin and public endpoints', async () => {
+  process.env.PUBLIC_DEALER_ID = 'DEALER_SOMKIAT';
+  try {
+    const managerToken = await loginAs('manager1');
+    const res = await request('PATCH', '/api/dealer-info', { hero_image: 'https://example.com/hero-truck.jpg' }, managerToken);
+    assert.strictEqual(res.body.dealer.hero_image, 'https://example.com/hero-truck.jpg');
+
+    const publicRes = await request('GET', '/api/public/dealer-info');
+    assert.strictEqual(publicRes.body.dealer.hero_image, 'https://example.com/hero-truck.jpg');
+  } finally {
+    delete process.env.PUBLIC_DEALER_ID;
+  }
+});
+
 test('Empty string clears a field back to null (not stored as a literal empty string)', async () => {
   const token = await loginAs('manager1');
   await request('PATCH', '/api/dealer-info', { line_id: '@somkiat' }, token);

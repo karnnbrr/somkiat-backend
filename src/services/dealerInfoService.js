@@ -13,12 +13,12 @@ const { AppError } = require('../errors');
 const { requirePermission } = require('../middleware/permission');
 const audit = require('./auditService');
 
-const EDITABLE_FIELDS = ['dealer_name', 'phone', 'address', 'business_hours', 'line_id', 'facebook_page_url'];
+const EDITABLE_FIELDS = ['dealer_name', 'phone', 'address', 'business_hours', 'line_id', 'facebook_page_url', 'hero_image'];
 
 function getDealerInfo(context) {
   const db = getDb();
   const row = db.prepare(
-    'SELECT dealer_id, dealer_name, phone, address, business_hours, line_id, facebook_page_url FROM dealers WHERE dealer_id = ?'
+    'SELECT dealer_id, dealer_name, phone, address, business_hours, line_id, facebook_page_url, hero_image FROM dealers WHERE dealer_id = ?'
   ).get(context.dealer_id);
   if (!row) throw new AppError('NOT_FOUND', 'dealer not found');
   return row;
