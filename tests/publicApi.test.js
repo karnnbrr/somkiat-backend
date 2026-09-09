@@ -53,6 +53,40 @@ function get(path) {
   });
 }
 
+test('Public trucks listing includes each truck\'s cover_photo (was completely missing before — every public listing card fell back to a placeholder)', async () => {
+  process.env.PUBLIC_DEALER_ID = 'DEALER_SOMKIAT';
+  try {
+    stockService.addTruck(somkiatManager, { truck_id: 'TRK-COVER-1', brand: 'ISUZU', model: 'NLR', year: 2020, price: 500000, down_payment: 20000, installment_amount: 12000, installment_count: 48 });
+    photoService.uploadPhoto(somkiatManager, { truck_id: 'TRK-COVER-1', file_name: 'cover.jpg', storage_reference: 'https://example.com/cover-photo.jpg', content_hash: 'cover-hash-1' });
+    const res = await get('/api/public/trucks');
+    const truck = res.body.trucks.find((t) => t.truck_id === 'TRK-COVER-1');
+    assert.strictEqual(truck.cover_photo, 'https://example.com/cover-photo.jpg');
+  } finally {
+    delete process.env.PUBLIC_DEALER_ID;
+  }
+});
+
+test('Public single truck (detail page) also includes cover_photo', async () => {
+  process.env.PUBLIC_DEALER_ID = 'DEALER_SOMKIAT';
+  try {
+    const res = await get('/api/public/trucks/TRK-COVER-1');
+    assert.strictEqual(res.body.truck.cover_photo, 'https://example.com/cover-photo.jpg');
+  } finally {
+    delete process.env.PUBLIC_DEALER_ID;
+  }
+});
+
+test('A truck with no photos at all returns cover_photo: null, not an error', async () => {
+  process.env.PUBLIC_DEALER_ID = 'DEALER_SOMKIAT';
+  try {
+    stockService.addTruck(somkiatManager, { truck_id: 'TRK-NOPHOTO', brand: 'ISUZU', model: 'NKR', year: 2015, price: 300000, down_payment: 15000, installment_amount: 8000, installment_count: 48 });
+    const res = await get('/api/public/trucks/TRK-NOPHOTO');
+    assert.strictEqual(res.body.truck.cover_photo, null);
+  } finally {
+    delete process.env.PUBLIC_DEALER_ID;
+  }
+});
+
 test('Public routes require NO Authorization header at all', async () => {
   process.env.PUBLIC_DEALER_ID = 'DEALER_SOMKIAT';
   try {

@@ -19,18 +19,35 @@ const { getDb } = require('../db/connection');
 
 function listAvailableTrucks(context, { model, maxPrice } = {}) {
   const db = getDb();
-  let sql = "SELECT truck_id, brand, model, year, price, down_payment, installment_amount, installment_count, body_type, stock_status FROM trucks WHERE dealer_id = ? AND stock_status != 'ขายแล้ว'";
+  // LEFT JOIN pulls each truck's cover photo (if any) — this is exactly
+  // what was missing: the listing endpoint never returned any photo data
+  // at all, so every card on the public site fell back to the camera-icon
+  // placeholder even for trucks that genuinely have photos uploaded.
+  let sql = `
+    SELECT t.truck_id, t.brand, t.model, t.year, t.price, t.down_payment, t.installment_amount,
+           t.installment_count, t.body_type, t.stock_status,
+           (SELECT p.storage_reference FROM truck_photos p
+            WHERE p.dealer_id = t.dealer_id AND p.truck_id = t.truck_id
+              AND p.is_cover = 1 AND p.photo_status = 'ACTIVE'
+            LIMIT 1) AS cover_photo
+    FROM trucks t
+    WHERE t.dealer_id = ? AND t.stock_status != 'ขายแล้ว'`;
   const params = [context.dealer_id];
-  if (model) { sql += ' AND model = ?'; params.push(model); }
-  if (maxPrice != null) { sql += ' AND price <= ?'; params.push(maxPrice); }
-  sql += ' ORDER BY rowid DESC';
+  if (model) { sql += ' AND t.model = ?'; params.push(model); }
+  if (maxPrice != null) { sql += ' AND t.price <= ?'; params.push(maxPrice); }
+  sql += ' ORDER BY t.rowid DESC';
   return db.prepare(sql).all(...params);
 }
 
 function getTruckById(context, truck_id) {
   const db = getDb();
   return db.prepare(
-    'SELECT truck_id, brand, model, year, price, down_payment, installment_amount, installment_count, body_type, stock_status FROM trucks WHERE dealer_id = ? AND truck_id = ?'
+    `SELECT truck_id, brand, model, year, price, down_payment, installment_amount, installment_count, body_type, stock_status,
+            (SELECT p.storage_reference FROM truck_photos p
+             WHERE p.dealer_id = trucks.dealer_id AND p.truck_id = trucks.truck_id
+               AND p.is_cover = 1 AND p.photo_status = 'ACTIVE'
+             LIMIT 1) AS cover_photo
+     FROM trucks WHERE dealer_id = ? AND truck_id = ?`
   ).get(context.dealer_id, truck_id) || null;
 }
 

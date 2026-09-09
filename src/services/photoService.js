@@ -37,11 +37,23 @@ function uploadPhoto(context, { truck_id, file_name, content_hash, storage_refer
   ).get(context.dealer_id, truck_id);
   const nextOrder = (maxOrderRow.maxOrder || 0) + 1;
 
+  // Real gap found while chasing "photos never show up on the public site":
+  // is_cover always inserted as 0, with nothing anywhere that ever called
+  // setCover automatically OR exposed a "set as cover" button in either
+  // dashboard — meaning NO truck's photo could ever become a cover photo
+  // in practice. The first photo uploaded for a truck now becomes its
+  // cover automatically; later uploads leave the existing cover alone
+  // (still changeable via setCover).
+  const hasCoverAlready = db.prepare(
+    "SELECT 1 FROM truck_photos WHERE dealer_id = ? AND truck_id = ? AND is_cover = 1 AND photo_status = 'ACTIVE'"
+  ).get(context.dealer_id, truck_id);
+  const isCover = hasCoverAlready ? 0 : 1;
+
   const photo_id = 'PHOTO-' + crypto.randomUUID();
   db.prepare(
     `INSERT INTO truck_photos (photo_id, dealer_id, truck_id, storage_reference, file_name, content_hash, photo_status, is_cover, display_order, uploaded_by)
-     VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE', 0, ?, ?)`
-  ).run(photo_id, context.dealer_id, truck_id, storage_reference || `local://${photo_id}`, file_name || null, content_hash || null, nextOrder, context.user_id || context.role);
+     VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?, ?)`
+  ).run(photo_id, context.dealer_id, truck_id, storage_reference || `local://${photo_id}`, file_name || null, content_hash || null, isCover, nextOrder, context.user_id || context.role);
   audit.record(context, { action_type: 'PHOTO_UPLOAD', entity: 'truck_photo', entity_id: photo_id, new_value: truck_id });
   return db.prepare('SELECT * FROM truck_photos WHERE photo_id = ?').get(photo_id);
 }
@@ -71,6 +83,17 @@ function deactivatePhoto(context, photo_id) {
   if (!photo) throw new AppError('NOT_FOUND', 'photo not found for this dealer');
   db.prepare("UPDATE truck_photos SET photo_status = 'INACTIVE', is_cover = 0 WHERE dealer_id = ? AND photo_id = ?")
     .run(context.dealer_id, photo_id);
+  // If the deleted photo WAS the cover, promote the next remaining active
+  // photo (if any) — otherwise deleting a cover photo would silently
+  // leave the truck with zero cover forever, even with other photos left.
+  if (photo.is_cover) {
+    const next = db.prepare(
+      "SELECT photo_id FROM truck_photos WHERE dealer_id = ? AND truck_id = ? AND photo_status = 'ACTIVE' ORDER BY display_order ASC LIMIT 1"
+    ).get(context.dealer_id, photo.truck_id);
+    if (next) {
+      db.prepare('UPDATE truck_photos SET is_cover = 1 WHERE dealer_id = ? AND photo_id = ?').run(context.dealer_id, next.photo_id);
+    }
+  }
   audit.record(context, { action_type: 'DEACTIVATE_PHOTO', entity: 'truck_photo', entity_id: photo_id });
   return { photo_id, photo_status: 'INACTIVE' };
 }
