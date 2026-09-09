@@ -25,7 +25,7 @@ function listAvailableTrucks(context, { model, maxPrice } = {}) {
   // placeholder even for trucks that genuinely have photos uploaded.
   let sql = `
     SELECT t.truck_id, t.brand, t.model, t.year, t.price, t.down_payment, t.installment_amount,
-           t.installment_count, t.body_type, t.stock_status,
+           t.installment_count, t.body_type, t.cargo_dimensions, t.stock_status,
            (SELECT p.storage_reference FROM truck_photos p
             WHERE p.dealer_id = t.dealer_id AND p.truck_id = t.truck_id
               AND p.is_cover = 1 AND p.photo_status = 'ACTIVE'
@@ -42,7 +42,7 @@ function listAvailableTrucks(context, { model, maxPrice } = {}) {
 function getTruckById(context, truck_id) {
   const db = getDb();
   return db.prepare(
-    `SELECT truck_id, brand, model, year, price, down_payment, installment_amount, installment_count, body_type, stock_status,
+    `SELECT truck_id, brand, model, year, price, down_payment, installment_amount, installment_count, body_type, cargo_dimensions, stock_status,
             (SELECT p.storage_reference FROM truck_photos p
              WHERE p.dealer_id = trucks.dealer_id AND p.truck_id = trucks.truck_id
                AND p.is_cover = 1 AND p.photo_status = 'ACTIVE'

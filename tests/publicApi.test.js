@@ -87,6 +87,20 @@ test('A truck with no photos at all returns cover_photo: null, not an error', as
   }
 });
 
+test('Public API now includes cargo_dimensions too (was missing from the explicit column list)', async () => {
+  process.env.PUBLIC_DEALER_ID = 'DEALER_SOMKIAT';
+  try {
+    stockService.addTruck(somkiatManager, { truck_id: 'TRK-DIMPUB', brand: 'ISUZU', model: 'NLR', price: 600000, down_payment: 20000, installment_amount: 14000, installment_count: 60, cargo_dimensions: '2.3 x 4.9 x 2.0 ม.' });
+    const res = await get('/api/public/trucks/TRK-DIMPUB');
+    assert.strictEqual(res.body.truck.cargo_dimensions, '2.3 x 4.9 x 2.0 ม.');
+    const list = await get('/api/public/trucks');
+    const found = list.body.trucks.find((t) => t.truck_id === 'TRK-DIMPUB');
+    assert.strictEqual(found.cargo_dimensions, '2.3 x 4.9 x 2.0 ม.');
+  } finally {
+    delete process.env.PUBLIC_DEALER_ID;
+  }
+});
+
 test('Public routes require NO Authorization header at all', async () => {
   process.env.PUBLIC_DEALER_ID = 'DEALER_SOMKIAT';
   try {
